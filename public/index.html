@@ -1,1 +1,12 @@
-
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trust Analyzer</title>
+<h1>ตรวจ Trust ด้วย address</h1>
+<input id="a" placeholder="0x..." size="46"> <button id="go">ตรวจ</button>
+<pre id="out"></pre>
+<script>
+document.getElementById('go').onclick = async () => {
+  const a = document.getElementById('a').value.trim();
+  const r = await fetch('/api/score/' + encodeURIComponent(a));
+  document.getElementById('out').textContent = JSON.stringify(await r.json(), null, 2);
+};
+</script>
