@@ -1,12 +1,283 @@
-<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trust Analyzer</title>
-<h1>ตรวจ Trust ด้วย address</h1>
-<input id="a" placeholder="0x..." size="46"> <button id="go">ตรวจ</button>
-<pre id="out"></pre>
+
+<!-- Fonts and Material Web (Google's official Material Design 3 web components, button only) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<script type="importmap">{ "imports": { "@material/web/": "https://esm.run/@material/web/" } }</script>
+<script type="module">import '@material/web/button/filled-button.js';</script>
+
+<style>
+  /* ============ Design tokens: edit colours, radii and spacing here ============ */
+  :root {
+    --bg: #f8fafd;                  --surface: #ffffff;
+    --on-surface: #1f1f1f;          --on-surface-variant: #444746;
+    --outline: #747775;             --outline-variant: #c4c7c5;
+    --primary: #0b57d0;             --primary-container: #d3e3fd;   --on-primary-container: #041e49;
+    --ok-container: #c4eed0;        --on-ok-container: #072711;
+    --warn-container: #ffefc2;      --on-warn-container: #3d2c00;
+    --error-container: #f9dedc;     --on-error-container: #410e0b;
+    --neutral-container: #e9eef6;   --on-neutral-container: #1f1f1f;
+    --radius-card: 16px;            --radius-chip: 8px;             --gap: 16px;
+
+    /* tokens read directly by Material Web */
+    --md-sys-color-primary: #0b57d0;  --md-sys-color-on-primary: #ffffff;
+    --md-ref-typeface-brand: 'Roboto', sans-serif;  --md-ref-typeface-plain: 'Roboto', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131314;                --surface: #1e1f20;
+      --on-surface: #e3e3e3;        --on-surface-variant: #c4c7c5;
+      --outline: #8e918f;           --outline-variant: #444746;
+      --primary: #a8c7fa;           --primary-container: #0842a0;   --on-primary-container: #d3e3fd;
+      --ok-container: #0f5223;      --on-ok-container: #c4eed0;
+      --warn-container: #4a3b00;    --on-warn-container: #ffe08a;
+      --error-container: #601410;   --on-error-container: #f9dedc;
+      --neutral-container: #2b2d30; --on-neutral-container: #e3e3e3;
+      --md-sys-color-primary: #a8c7fa;  --md-sys-color-on-primary: #062e6f;
+    }
+  }
+
+  /* ============ Base ============ */
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--on-surface);
+         font-family: 'Roboto', system-ui, sans-serif; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 28px; font-weight: 400; margin: 8px 0 4px; }
+  .lead { color: var(--on-surface-variant); margin: 0 0 24px; font-size: 14px; }
+  .mono { font-family: ui-monospace, 'Roboto Mono', monospace; }
+  .muted { color: var(--on-surface-variant); }
+
+  /* ============ Card ============ */
+  .card { background: var(--surface); border: 1px solid var(--outline-variant);
+          border-radius: var(--radius-card); padding: 20px; margin-bottom: var(--gap); }
+  .card h2 { font-size: 16px; font-weight: 500; margin: 0 0 12px; }
+  .label { font-size: 12px; font-weight: 500; color: var(--on-surface-variant); margin-bottom: 4px; }
+
+  /* ============ Search ============ */
+  .search-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+  .search-row input { flex: 1 1 260px; min-width: 0; height: 48px; padding: 0 16px; font: inherit; font-size: 14px;
+                      color: var(--on-surface); background: transparent;
+                      border: 1px solid var(--outline); border-radius: 4px; }
+  .search-row input:hover { border-color: var(--on-surface); }
+  .search-row input:focus { outline: none; border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+  md-filled-button { --md-filled-button-container-height: 48px; }
+  /* fallback if the Material Web script cannot load */
+  md-filled-button:not(:defined) { display: inline-flex; align-items: center; padding: 0 24px; height: 48px; border-radius: 24px;
+                                   background: var(--primary); color: #fff; font-weight: 500; cursor: pointer; }
+  .examples { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  .examples .label { margin: 0 4px 0 0; }
+
+  /* ============ Chips ============ */
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500;
+          border-radius: var(--radius-chip); background: var(--neutral-container); color: var(--on-neutral-container); border: none; }
+  button.chip { cursor: pointer; font-family: inherit; border: 1px solid var(--outline-variant); background: transparent; color: var(--on-surface); }
+  button.chip:hover { background: var(--neutral-container); }
+  .chip.ok { background: var(--ok-container); color: var(--on-ok-container); }
+  .chip.primary { background: var(--primary-container); color: var(--on-primary-container); }
+  .chip.error { background: var(--error-container); color: var(--on-error-container); }
+  .chip.warn { background: var(--warn-container); color: var(--on-warn-container); }
+
+  /* ============ Result ============ */
+  .result-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+  .addr { font-size: 13px; word-break: break-all; }
+  .score { margin: 8px 0 16px; }
+  .score-value { font-size: 44px; font-weight: 400; line-height: 1.1; }
+  .score-value small { font-size: 14px; color: var(--on-surface-variant); margin-left: 8px; }
+  .score.dim .score-value { opacity: .55; }
+  .meter { height: 8px; border-radius: 4px; background: var(--neutral-container); overflow: hidden; margin: 10px 0 6px; }
+  .meter > div { height: 100%; background: var(--primary); border-radius: 4px; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
+  .stat { background: var(--neutral-container); border-radius: 12px; padding: 12px; }
+  .stat .v { font-size: 20px; font-weight: 500; }
+  .stat .k { font-size: 12px; color: var(--on-surface-variant); }
+
+  /* ============ Banners ============ */
+  .banner { display: flex; gap: 12px; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; font-size: 14px; }
+  .banner svg { flex: none; width: 20px; height: 20px; margin-top: 2px; fill: currentColor; }
+  .banner.info    { background: var(--primary-container); color: var(--on-primary-container); }
+  .banner.warn    { background: var(--warn-container);    color: var(--on-warn-container); }
+  .banner.error   { background: var(--error-container);   color: var(--on-error-container); }
+  .banner.neutral { background: var(--neutral-container); color: var(--on-neutral-container); }
+  .banner b { font-weight: 500; }
+
+  details { margin-top: 16px; font-size: 14px; }
+  summary { cursor: pointer; font-weight: 500; color: var(--primary); }
+  details p { color: var(--on-surface-variant); margin: 8px 0; }
+  pre { background: var(--neutral-container); padding: 12px; border-radius: 12px; overflow-x: auto; font-size: 12px; }
+  .meta { font-size: 12px; color: var(--on-surface-variant); margin-top: 16px; }
+</style>
+</head>
+
+<body>
+<main class="page">
+  <h1>Trust Analyzer</h1>
+  <p class="lead">Check how much trust an address has earned, and how reliable that result is.</p>
+
+  <section class="card" aria-labelledby="search-title">
+    <h2 id="search-title">Look up an address</h2>
+    <label class="label" for="addr">Address</label>
+    <div class="search-row">
+      <input id="addr" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="0x..." />
+      <md-filled-button id="go" type="button">Analyze</md-filled-button>
+    </div>
+    <div class="examples" id="examples"><span class="label">Try an example</span></div>
+  </section>
+
+  <div id="result" aria-live="polite"></div>
+</main>
+
 <script>
-document.getElementById('go').onclick = async () => {
-  const a = document.getElementById('a').value.trim();
-  const r = await fetch('/api/score/' + encodeURIComponent(a));
-  document.getElementById('out').textContent = JSON.stringify(await r.json(), null, 2);
-};
+  // ============ Settings: edit here ============
+  const MIN_INDEPENDENT = 3;                       // below this, no percentile is shown
+  const CONFIDENCE = [                             // by number of independent endorsers
+    { min: 10, label: 'High' }, { min: 5, label: 'Medium' }, { min: 3, label: 'Low' }
+  ];
+  const EXAMPLES = [                               // demo addresses (remove for production)
+    { label: 'Typical address',      address: '0x4d4509efc5b019386f857b0b57515db98ea4ff6d' },
+    { label: 'Root node',            address: '0x11d728ae642af2ef81376db5fb82fa3ff2f1ab58' },
+    { label: 'No endorsements yet',  address: '0xad53554720018b06fba36eba48cf3e24f977ad40' },
+    { label: 'Flagged cluster',      address: '0x6bc612c565429e3883fa95e3fbeb2ae2dbd5b202' }
+  ];
+
+  // <classify>
+  function classify(d) {
+    if (d.is_seed) return 'root';
+    if (d.flag_reciprocal_cluster) return 'flagged';
+    if ((d.independent_endorsers || 0) < MIN_INDEPENDENT) return 'insufficient';
+    return 'scored';
+  }
+  function confidenceOf(n) {
+    for (const c of CONFIDENCE) if (n >= c.min) return c.label;
+    return 'None';
+  }
+  // </classify>
+
+  // ============ Helpers ============
+  const $ = (id) => document.getElementById(id);
+  const ADDR = /^0x[0-9a-fA-F]{40}$/;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ICON = {
+    info:  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>',
+    warn:  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+    error: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>'
+  };
+  const banner = (kind, title, text) =>
+    `<div class="banner ${kind}" role="note">${ICON[kind === 'neutral' ? 'info' : kind]}<div><b>${esc(title)}</b><br>${esc(text)}</div></div>`;
+  const stat = (v, k) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`;
+
+  function showMessage(kind, title, text) {
+    $('result').innerHTML = `<section class="card">${banner(kind, title, text)}</section>`;
+  }
+
+  // ============ Render ============
+  function render(d) {
+    const state = classify(d);
+    const independent = d.independent_endorsers || 0;
+    const pct = Math.round(d.trust_percentile);
+    const recipPct = Math.round((d.reciprocity || 0) * 100);
+
+    const status = {
+      scored:       { cls: 'ok',      text: 'Scored' },
+      root:         { cls: 'primary', text: 'Root node' },
+      flagged:      { cls: 'error',   text: 'Risk flag' },
+      insufficient: { cls: 'neutral', text: 'Not enough data' }
+    }[state];
+
+    let notice = '';
+    if (state === 'flagged') notice = banner('warn', 'Reciprocal endorsement cluster detected',
+      `${recipPct}% of this address's endorsements are returned by the same addresses. Treat this score with caution.`);
+    if (state === 'root') notice = banner('info', 'Root node',
+      'Root nodes anchor the trust calculation, so their position is set by design rather than earned through endorsements. No percentile is shown.');
+    if (state === 'insufficient') notice = banner('neutral', 'Not enough data yet',
+      `This address has ${independent} independent endorser${independent === 1 ? '' : 's'}; at least ${MIN_INDEPENDENT} are needed for a reliable percentile, so none is shown. Independent endorsers are addresses that endorse it without being endorsed back.`);
+
+    let scoreBlock = '';
+    if (state === 'scored' || state === 'flagged') {
+      scoreBlock = `
+        <div class="score ${state === 'flagged' ? 'dim' : ''}">
+          <div class="label">Trust percentile</div>
+          <div class="score-value">${pct}<small>of 100</small></div>
+          <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><div style="width:${pct}%"></div></div>
+          <div class="muted" style="font-size:12px">Higher than ${pct}% of the ${esc(d.of)} addresses in this data set.</div>
+        </div>`;
+    }
+
+    const showRank = state === 'scored' || state === 'flagged';
+    const stats = [
+      stat(d.endorsements_received, 'Endorsements received'),
+      stat(independent, 'Independent endorsers'),
+      stat(d.endorsements_given, 'Endorsements given'),
+      stat(recipPct + '%', 'Returned endorsements'),
+      stat(showRank ? `#${d.rank} of ${d.of}` : '—', 'Rank'),
+      stat(state === 'scored' || state === 'flagged' ? confidenceOf(independent) : '—', 'Confidence')
+    ].join('');
+
+    const demo = d.demo_data ? banner('neutral', 'Demo data', 'This result comes from a synthetic data set used for demonstration.') : '';
+
+    $('result').innerHTML = `
+      <section class="card">
+        <div class="result-head">
+          <div><div class="label">Address</div><div class="addr mono">${esc(d.address)}</div></div>
+          <span class="chip ${status.cls}">${status.text}</span>
+        </div>
+        ${notice}${scoreBlock}
+        <div class="stats">${stats}</div>
+        <details>
+          <summary>How is this calculated?</summary>
+          <p>Scores come from a seeded PageRank over the endorsement graph. Trust flows outward from root nodes along endorsements, and each address's influence is capped so no single address dominates. Clusters that mostly endorse each other are flagged.</p>
+          <p>Confidence reflects how many independent endorsers support the result.</p>
+        </details>
+        <details>
+          <summary>Raw data</summary>
+          <pre>${esc(JSON.stringify(d, null, 2))}</pre>
+        </details>
+        <div class="meta">Model: ${esc(d.model || 'n/a')} · Updated: ${esc(d.updated || 'n/a')}</div>
+      </section>
+      ${demo ? `<section class="card">${demo}</section>` : ''}`;
+  }
+
+  // ============ Lookup ============
+  function setBusy(b) {
+    const btn = $('go');
+    btn.toggleAttribute('disabled', b);
+    btn.textContent = b ? 'Analyzing…' : 'Analyze';
+  }
+
+  async function analyze(raw) {
+    const a = raw.trim().toLowerCase();
+    if (!ADDR.test(a)) {
+      showMessage('error', 'Invalid address', 'Enter an address that starts with 0x followed by 40 hexadecimal characters.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await fetch('/api/score/' + encodeURIComponent(a));
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 404) showMessage('neutral', 'No record found', 'This address has no endorsements or history in the data set yet.');
+      else if (!r.ok) showMessage('error', 'Something went wrong', data.error || `Request failed with status ${r.status}.`);
+      else { render(data); history.replaceState(null, '', '#' + a); }
+    } catch (e) {
+      showMessage('error', 'Network error', 'Could not reach the service. Check your connection and try again.');
+    } finally { setBusy(false); }
+  }
+
+  // ============ Wiring ============
+  EXAMPLES.forEach((ex) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = ex.label;
+    b.addEventListener('click', () => { $('addr').value = ex.address; analyze(ex.address); });
+    $('examples').appendChild(b);
+  });
+  $('go').addEventListener('click', () => analyze($('addr').value));
+  $('addr').addEventListener('keydown', (e) => { if (e.key === 'Enter') analyze($('addr').value); });
+  const fromHash = location.hash.slice(1);
+  if (ADDR.test(fromHash)) { $('addr').value = fromHash; analyze(fromHash); }
 </script>
+</body>
+</html>
